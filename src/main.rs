@@ -31,7 +31,9 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, update_material_blur)
         .add_systems(Update, update_focus_depth)
-        .insert_resource(FocusDepth(1.0))
+        .add_systems(Update, update_collider_on_focus)
+        .add_systems(Update, update_player_position)
+        .insert_resource(FocusDepth(0.0))
         .run();
 }
 
@@ -67,7 +69,7 @@ fn setup(
             blur_intensity: 0.0,
             texture: asset_server.load("crate.png"),
         })),
-        Transform::default().with_translation(Vec3::new(200.0, -50.0, 5.0)),
+        Transform::default().with_translation(Vec3::new(0.0, -200.0, 5.0)),
         RigidBody::Static,
         Collider::rectangle(259.0, 194.0),
     ));
@@ -85,11 +87,13 @@ fn setup(
         Transform::default().with_translation(Vec3::new(-100.0, 500.0, 10.0)),
         RigidBody::Dynamic,
         Collider::rectangle(50.0, 50.0),
+        PlayerCharacter,
     ));
 }
 
 const MIN_FOCUS_DEPTH: f32 = 0.0;
 const MAX_FOCUS_DEPTH: f32 = 10.0;
+const FOCUS_COLLISION_THRESHOLD: f32 = 1.5;
 
 #[derive(Resource)]
 struct FocusDepth(f32);
@@ -107,6 +111,21 @@ fn update_material_blur(
     }
 }
 
+fn update_collider_on_focus(
+    mut commands: Commands,
+    q: Query<(Entity, &GlobalTransform, &MeshMaterial2d<BlurMaterial>)>,
+    focus_depth: Res<FocusDepth>,
+) {
+    for (entity, transform, _) in q.iter() {
+        let depth = transform.translation().z;
+        if (focus_depth.0 - depth).abs() > FOCUS_COLLISION_THRESHOLD {
+            commands.entity(entity).insert(ColliderDisabled);
+        } else {
+            commands.entity(entity).remove::<ColliderDisabled>();
+        }
+    }
+}
+
 fn update_focus_depth(
     mut focus_depth: ResMut<FocusDepth>,
     mut mouse_wheel_events: EventReader<MouseWheel>,
@@ -120,6 +139,21 @@ fn update_focus_depth(
         focus_depth.0 = f32::min(MAX_FOCUS_DEPTH, f32::max(MIN_FOCUS_DEPTH, focus_depth.0));
     }
 }
+
+fn update_player_position(
+    mut q: Query<(Entity, &PlayerCharacter, &mut Transform)>,
+    window_q: Query<&Window>,
+) {
+    let window = window_q.single();
+    for (_, _, mut transform) in q.iter_mut() {
+        if transform.translation.y < (-window.resolution.height() / 2.0) {
+            transform.translation.y *= -1.0;
+        }
+    }
+}
+
+#[derive(Component)]
+struct PlayerCharacter;
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 struct BlurMaterial {
