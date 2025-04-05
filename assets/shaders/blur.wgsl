@@ -17,7 +17,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     for (var x = -upper; x <= upper; x++) {
         for (var y = -upper; y <= upper; y++) {
             let uv = in.uv + vec2<f32>(f32(x) * texel_size.x, f32(y) * texel_size.y);
-            color += textureSample(texture, texture_sampler, uv);
+            let texel = textureSample(texture, texture_sampler, uv);
+            color += texel * texel.a;
         }
     }
     color /= (f32(kernel_size * kernel_size));
