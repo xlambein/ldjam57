@@ -14,11 +14,11 @@ writeScriptBin "just" ''
 
   # Build in debug mode
   build:
-    cargo build --features bevy/dynamic_linking
+    cargo build --features bevy/dynamic_linking,bevy/file_watcher
 
   # Run in debug mode
   run:
-    cargo run --features bevy/dynamic_linking
+    cargo run --features bevy/dynamic_linking,bevy/file_watcher
 
   # Watch files and execute `just run` on change
   watch:
