@@ -4,8 +4,10 @@ use avian2d::prelude::*;
 use bevy::{
     input::mouse::{MouseButtonInput, MouseWheel},
     prelude::*,
+    // render::camera::ScalingMode,
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
+use bevy_ecs_ldtk::{LdtkSettings, LevelSpawnBehavior};
 use global_cursor::GlobalCursor;
 
 fn main() {
@@ -25,6 +27,14 @@ fn main() {
                 // Disable smoothing for better pixel art
                 .set(ImagePlugin::default_nearest()),
         )
+        .add_plugins(bevy_ecs_ldtk::LdtkPlugin)
+        .insert_resource(bevy_ecs_ldtk::LevelSelection::index(0))
+        .insert_resource(bevy_ecs_ldtk::LdtkSettings {
+            level_spawn_behavior: LevelSpawnBehavior::UseWorldTranslation {
+                load_level_neighbors: false,
+            },
+            ..Default::default()
+        })
         .add_plugins((
             bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
             PhysicsPlugins::default(),
@@ -41,6 +51,9 @@ fn main() {
         .insert_resource(FocusDepth(0.0))
         .run();
 }
+
+#[derive(Default, Bundle, bevy_ecs_ldtk::LdtkEntity)]
+struct PlayerBundle {}
 
 fn quit_on_ctrl_q(keys: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight])
@@ -104,6 +117,19 @@ fn setup(
         Collider::rectangle(50.0, 50.0),
         PlayerCharacter,
     ));
+    // commands.spawn((
+    //     Camera2d,
+    //     OrthographicProjection {
+    //         scale: 0.5,
+    //         ..OrthographicProjection::default_2d()
+    //     },
+    //     // TODO: this is probably wrong
+    //     Transform::from_xyz(1080.0 / 4.0, 720.0 / 4.0, 0.0),
+    // ));
+    // commands.spawn(bevy_ecs_ldtk::LdtkWorldBundle {
+    //     ldtk_handle: asset_server.load("world.ldtk").into(),
+    //     ..Default::default()
+    // });
 }
 
 const MIN_FOCUS_DEPTH: f32 = 0.0;
