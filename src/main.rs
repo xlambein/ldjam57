@@ -1,9 +1,12 @@
+mod global_cursor;
+
 use avian2d::prelude::*;
 use bevy::{
-    input::mouse::MouseWheel,
+    input::mouse::{MouseButtonInput, MouseWheel},
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef},
 };
+use global_cursor::GlobalCursor;
 
 fn main() {
     App::new()
@@ -25,6 +28,7 @@ fn main() {
         .add_plugins((
             bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
             PhysicsPlugins::default(),
+            global_cursor::GlobalCursorPlugin,
         ))
         .insert_resource(Gravity(avian2d::math::Vector::NEG_Y * 9.81 * 100.0))
         .add_systems(Update, quit_on_ctrl_q)
@@ -33,6 +37,7 @@ fn main() {
         .add_systems(Update, update_focus_depth)
         .add_systems(Update, update_collider_on_focus)
         .add_systems(Update, update_player_position)
+        .add_systems(Update, log_cursor_clicks)
         .insert_resource(FocusDepth(0.0))
         .run();
 }
@@ -52,7 +57,17 @@ fn setup(
     mut materials: ResMut<Assets<BlurMaterial>>,
     mut color_materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn(Camera2d);
+    let crate_collider = Collider::convex_hull(vec![
+        Vec2::new(-87.886734, 81.5586),
+        Vec2::new(37.378876, 85.45703),
+        Vec2::new(94.66406, 72.66406),
+        Vec2::new(90.30469, -63.886715),
+        Vec2::new(-47.195297, -79.3164),
+        Vec2::new(-85.39064, -44.48046),
+    ])
+    .unwrap();
+
+    commands.spawn((Camera2d, global_cursor::MainCamera));
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
         MeshMaterial2d(materials.add(BlurMaterial {
@@ -61,7 +76,7 @@ fn setup(
         })),
         Transform::default().with_translation(Vec3::new(-100.0, -100.0, 0.0)),
         RigidBody::Static,
-        Collider::rectangle(259.0, 194.0),
+        crate_collider.clone(),
     ));
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
@@ -69,9 +84,9 @@ fn setup(
             blur_intensity: 0.0,
             texture: asset_server.load("crate.png"),
         })),
-        Transform::default().with_translation(Vec3::new(0.0, -200.0, 5.0)),
+        Transform::default().with_translation(Vec3::new(-50.0, -200.0, 5.0)),
         RigidBody::Static,
-        Collider::rectangle(259.0, 194.0),
+        crate_collider,
     ));
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(50.0, 50.0))),
@@ -148,6 +163,17 @@ fn update_player_position(
     for (_, _, mut transform) in q.iter_mut() {
         if transform.translation.y < (-window.resolution.height() / 2.0) {
             transform.translation.y *= -1.0;
+        }
+    }
+}
+
+fn log_cursor_clicks(
+    mut mouse_button_events: EventReader<MouseButtonInput>,
+    cursor: Res<GlobalCursor>,
+) {
+    for event in mouse_button_events.read() {
+        if event.state.is_pressed() {
+            eprintln!("{}", cursor.position());
         }
     }
 }
