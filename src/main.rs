@@ -1,7 +1,8 @@
+use avian2d::prelude::*;
 use bevy::{
+    input::mouse::MouseWheel,
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef},
-    input::mouse::MouseWheel,
 };
 
 fn main() {
@@ -21,7 +22,11 @@ fn main() {
                 // Disable smoothing for better pixel art
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins((bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),))
+        .add_plugins((
+            bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
+            PhysicsPlugins::default(),
+        ))
+        .insert_resource(Gravity(avian2d::math::Vector::NEG_Y * 9.81 * 100.0))
         .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Startup, setup)
         .add_systems(Update, update_material_blur)
@@ -43,23 +48,43 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<BlurMaterial>>,
+    mut color_materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn(Camera2d);
     commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(1600.0, 1062.0))),
+        Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
         MeshMaterial2d(materials.add(BlurMaterial {
             blur_intensity: 0.0,
-            texture: asset_server.load("computer.png"),
+            texture: asset_server.load("crate.png"),
         })),
-        Transform::default().with_translation(Vec3::new(-100.0, -50.0, 0.0)),
+        Transform::default().with_translation(Vec3::new(-100.0, -100.0, 0.0)),
+        RigidBody::Static,
+        Collider::rectangle(259.0, 194.0),
     ));
     commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(1600.0, 1062.0))),
+        Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
         MeshMaterial2d(materials.add(BlurMaterial {
             blur_intensity: 0.0,
-            texture: asset_server.load("computer.png"),
+            texture: asset_server.load("crate.png"),
         })),
-        Transform::default().with_translation(Vec3::new(200.0, 50.0, 5.0)),
+        Transform::default().with_translation(Vec3::new(200.0, -50.0, 5.0)),
+        RigidBody::Static,
+        Collider::rectangle(259.0, 194.0),
+    ));
+    commands.spawn((
+        Mesh2d(meshes.add(Rectangle::new(50.0, 50.0))),
+        MeshMaterial2d(color_materials.add(ColorMaterial {
+            color: Color::Srgba(Srgba {
+                red: 1.0,
+                green: 0.2,
+                blue: 0.3,
+                alpha: 1.0,
+            }),
+            ..default()
+        })),
+        Transform::default().with_translation(Vec3::new(-100.0, 500.0, 10.0)),
+        RigidBody::Dynamic,
+        Collider::rectangle(50.0, 50.0),
     ));
 }
 
@@ -77,7 +102,7 @@ fn update_material_blur(
     for (handle, transform) in q.iter() {
         if let Some(material) = materials.get_mut(handle) {
             let depth = transform.translation().z;
-            material.blur_intensity = (focus_depth.0 - depth).abs();
+            material.blur_intensity = (focus_depth.0 - depth).abs() * 10.0;
         }
     }
 }
