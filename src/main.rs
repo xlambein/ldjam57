@@ -1,6 +1,7 @@
 use bevy::{
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef},
+    input::mouse::MouseWheel,
 };
 
 fn main() {
@@ -58,9 +59,12 @@ fn setup(
             blur_intensity: 0.0,
             texture: asset_server.load("computer.png"),
         })),
-        Transform::default().with_translation(Vec3::new(200.0, 50.0, 1.0)),
+        Transform::default().with_translation(Vec3::new(200.0, 50.0, 5.0)),
     ));
 }
+
+const MIN_FOCUS_DEPTH: f32 = 0.0;
+const MAX_FOCUS_DEPTH: f32 = 10.0;
 
 #[derive(Resource)]
 struct FocusDepth(f32);
@@ -73,16 +77,23 @@ fn update_material_blur(
     for (handle, transform) in q.iter() {
         if let Some(material) = materials.get_mut(handle) {
             let depth = transform.translation().z;
-            material.blur_intensity = (focus_depth.0 - depth).abs() / 1.0;
+            material.blur_intensity = (focus_depth.0 - depth).abs();
         }
     }
 }
 
 fn update_focus_depth(
     mut focus_depth: ResMut<FocusDepth>,
-    time: Res<Time>,
+    mut mouse_wheel_events: EventReader<MouseWheel>,
 ) {
-    focus_depth.0 = time.elapsed_secs().sin();
+    for event in mouse_wheel_events.read() {
+        if event.y > 0.0 {
+            focus_depth.0 += 0.2;
+        } else {
+            focus_depth.0 -= 0.2;
+        }
+        focus_depth.0 = f32::min(MAX_FOCUS_DEPTH, f32::max(MIN_FOCUS_DEPTH, focus_depth.0));
+    }
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]

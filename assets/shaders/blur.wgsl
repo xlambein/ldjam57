@@ -7,11 +7,12 @@
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // let kernel_size = (blur_intensity);
-    let upper = i32(blur_intensity * 5.0);
+    // let upper = i32(blur_intensity * 1.0);
+    let upper = 3;
     let kernel_size = upper * 2 + 1;
     let texture_size = vec2<f32>(textureDimensions(texture));
     // TODO we don't want to average over texels, but instead over viewport pixels
-    let texel_size = 1.0 / texture_size * 5.0;
+    let texel_size = 1.0 / texture_size * blur_intensity;
     var color = vec4(0.0);
     for (var x = -upper; x <= upper; x++) {
         for (var y = -upper; y <= upper; y++) {
