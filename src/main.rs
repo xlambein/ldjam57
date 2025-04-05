@@ -20,9 +20,7 @@ fn main() {
                 // Disable smoothing for better pixel art
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins((
-            bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
-        ))
+        .add_plugins((bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),))
         .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Startup, setup)
         .run();
@@ -44,12 +42,11 @@ fn setup(
 ) {
     commands.spawn(Camera2d);
     commands.spawn((
-        Mesh2d(meshes.add(Cuboid::default())),
+        Mesh2d(meshes.add(Rectangle::new(1600.0, 1062.0))),
         MeshMaterial2d(materials.add(BlurMaterial {
             blur_intensity: 0.0,
             texture: asset_server.load("computer.png"),
         })),
-        Transform::default().with_scale(Vec3::splat(512.)),
     ));
 }
 
