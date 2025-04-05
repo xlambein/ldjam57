@@ -24,6 +24,8 @@ fn main() {
         .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Startup, setup)
         .add_systems(Update, update_material_blur)
+        .add_systems(Update, update_focus_depth)
+        .insert_resource(FocusDepth(1.0))
         .run();
 }
 
@@ -60,16 +62,27 @@ fn setup(
     ));
 }
 
+#[derive(Resource)]
+struct FocusDepth(f32);
+
 fn update_material_blur(
-    q: Query<&MeshMaterial2d<BlurMaterial>>,
+    q: Query<(&MeshMaterial2d<BlurMaterial>, &GlobalTransform)>,
     mut materials: ResMut<Assets<BlurMaterial>>,
-    time: Res<Time>,
+    focus_depth: Res<FocusDepth>,
 ) {
-    for handle in q.iter() {
+    for (handle, transform) in q.iter() {
         if let Some(material) = materials.get_mut(handle) {
-            material.blur_intensity = time.elapsed_secs().sin().abs();
+            let depth = transform.translation().z;
+            material.blur_intensity = (focus_depth.0 - depth).abs() / 1.0;
         }
     }
+}
+
+fn update_focus_depth(
+    mut focus_depth: ResMut<FocusDepth>,
+    time: Res<Time>,
+) {
+    focus_depth.0 = time.elapsed_secs().sin();
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
