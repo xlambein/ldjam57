@@ -4,7 +4,7 @@ use avian2d::prelude::*;
 use bevy::{
     input::mouse::{MouseButtonInput, MouseWheel},
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderRef},
+    render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
 use global_cursor::GlobalCursor;
 
@@ -71,7 +71,7 @@ fn setup(
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
         MeshMaterial2d(materials.add(BlurMaterial {
-            blur_intensity: 0.0,
+            settings: BlurSettings::default(),
             texture: asset_server.load("crate.png"),
         })),
         Transform::default().with_translation(Vec3::new(-100.0, -100.0, 0.0)),
@@ -81,7 +81,7 @@ fn setup(
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
         MeshMaterial2d(materials.add(BlurMaterial {
-            blur_intensity: 0.0,
+            settings: BlurSettings::default(),
             texture: asset_server.load("crate.png"),
         })),
         Transform::default().with_translation(Vec3::new(-50.0, -200.0, 5.0)),
@@ -121,7 +121,7 @@ fn update_material_blur(
     for (handle, transform) in q.iter() {
         if let Some(material) = materials.get_mut(handle) {
             let depth = transform.translation().z;
-            material.blur_intensity = (focus_depth.0 - depth).abs() * 10.0;
+            material.settings.blur_intensity = (focus_depth.0 - depth).abs() * 10.0;
         }
     }
 }
@@ -184,10 +184,29 @@ struct PlayerCharacter;
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 struct BlurMaterial {
     #[uniform(0)]
-    blur_intensity: f32,
+    settings: BlurSettings,
     #[texture(1)]
     #[sampler(2)]
     texture: Handle<Image>,
+}
+
+#[derive(ShaderType, Debug, Clone)]
+struct BlurSettings {
+    blur_intensity: f32,
+    // WebGL2 structs must be 16 byte aligned.
+    #[cfg(target_arch = "wasm32")]
+    _webgl2_padding: Vec3,
+}
+
+impl Default for BlurSettings {
+    fn default() -> Self {
+        BlurSettings {
+            blur_intensity: 0.0,
+            // WebGL2 structs must be 16 byte aligned.
+            #[cfg(target_arch = "wasm32")]
+            _webgl2_padding: Vec3::ZERO,
+        }
+    }
 }
 
 impl bevy::sprite::Material2d for BlurMaterial {

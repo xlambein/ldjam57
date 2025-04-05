@@ -6,7 +6,15 @@
     utils::coords_to_viewport_uv,
 }
 
-@group(2) @binding(0) var<uniform> blur_intensity: f32;
+struct BlurSettings {
+    blur_intensity: f32,
+#ifdef SIXTEEN_BYTE_ALIGNMENT
+    // WebGL2 structs must be 16 byte aligned.
+    _webgl2_padding: vec3<f32>,
+#endif
+}
+
+@group(2) @binding(0) var<uniform> settings: BlurSettings;
 @group(2) @binding(1) var texture: texture_2d<f32>;
 @group(2) @binding(2) var texture_sampler: sampler;
 
@@ -18,7 +26,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let kernel_size = upper * 2 + 1;
     let texture_size = vec2<f32>(textureDimensions(texture));
     // I think? That `viewport.zw` gives me the scale of a visible pixel in the texture's own coordinates :P
-    let texel_size = 1.0 / view.viewport.zw * blur_intensity;
+    let texel_size = 1.0 / view.viewport.zw * settings.blur_intensity;
     // let texel_size = 1.0 / texture_size * blur_intensity; // Previous implementation
     var color = vec4(0.0);
     for (var x = -upper; x <= upper; x++) {
