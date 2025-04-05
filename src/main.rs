@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    render::render_resource::{AsBindGroup, ShaderRef},
+};
 
 fn main() {
     App::new()
@@ -17,7 +20,11 @@ fn main() {
                 // Disable smoothing for better pixel art
                 .set(ImagePlugin::default_nearest()),
         )
+        .add_plugins((
+            bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
+        ))
         .add_systems(Update, quit_on_ctrl_q)
+        .add_systems(Startup, setup)
         .run();
 }
 
@@ -26,5 +33,36 @@ fn quit_on_ctrl_q(keys: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit
         && keys.just_pressed(KeyCode::KeyQ)
     {
         exit.send(AppExit::Success);
+    }
+}
+
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<BlurMaterial>>,
+) {
+    commands.spawn((Camera2d, Transform::from_scale(Vec3::splat(0.5))));
+    commands.spawn((
+        Mesh2d(meshes.add(Cuboid::default())),
+        MeshMaterial2d(materials.add(BlurMaterial {
+            blur_intensity: 0.0,
+            texture: asset_server.load("computer.png"),
+        })),
+    ));
+}
+
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+struct BlurMaterial {
+    #[uniform(0)]
+    blur_intensity: f32,
+    #[texture(1)]
+    #[sampler(2)]
+    texture: Handle<Image>,
+}
+
+impl bevy::sprite::Material2d for BlurMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/blur.wgsl".into()
     }
 }
