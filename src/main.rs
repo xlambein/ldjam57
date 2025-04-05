@@ -36,8 +36,8 @@ fn main() {
             AsepriteUltraPlugin,
         ))
         .insert_resource(Gravity(avian2d::math::Vector::NEG_Y * 9.81 * 100.0))
-        .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Startup, setup)
+        .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Update, update_material_blur)
         .add_systems(Update, update_focus_depth)
         .add_systems(Update, update_collider_on_focus)
@@ -70,39 +70,77 @@ fn setup(
     mut materials: ResMut<Assets<BlurMaterial>>,
     mut color_materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let crate_collider = Collider::convex_hull(vec![
-        Vec2::new(-87.886734, 81.5586),
-        Vec2::new(37.378876, 85.45703),
-        Vec2::new(94.66406, 72.66406),
-        Vec2::new(90.30469, -63.886715),
-        Vec2::new(-47.195297, -79.3164),
-        Vec2::new(-85.39064, -44.48046),
+    let back_collider = Collider::convex_hull(vec![
+        Vec2::new(-210.34375, 45.656258),
+        Vec2::new(-121.75392, 46.863293),
+        Vec2::new(-123.56251, 6.4258),
+        Vec2::new(-211.32423, 12.707018),
     ])
     .unwrap();
 
-    commands.spawn((Camera2d, global_cursor::MainCamera));
+    let mid_collider = Collider::convex_hull(vec![
+        Vec2::new(-90.46875, 6.0351415),
+        Vec2::new(0.980453, 4.503922),
+        Vec2::new(2.101593, -122.46483),
+        Vec2::new(-95.58983, -122.21875),
+    ])
+    .unwrap();
+
+    let front_collider = Collider::convex_hull(vec![
+        Vec2::new(66.339874, -56.17968),
+        Vec2::new(213.9531, -59.49609),
+        Vec2::new(71.07811, -107.27344),
+        Vec2::new(211.02737, -111.41797),
+    ])
+    .unwrap();
+
     commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
+        Camera2d,
+        global_cursor::MainCamera,
+        Transform::default().with_scale(Vec3::splat(0.33)),
+    ));
+
+    commands.spawn((
+        Sprite {
+            image: asset_server.load("world/simplified/level_0/_bg.png"),
+            ..Default::default()
+        },
+        Transform::default().with_translation(Vec3::Z * -5.),
+    ));
+
+    commands.spawn((
+        Mesh2d(meshes.add(Rectangle::new(424., 256.))),
         MeshMaterial2d(materials.add(BlurMaterial {
             settings: BlurSettings::default(),
-            texture: asset_server.load("crate.png"),
+            texture: asset_server.load("world/simplified/level_0/back.png"),
         })),
-        Transform::default().with_translation(Vec3::new(-100.0, -100.0, 0.0)),
+        Transform::default().with_translation(Vec3::ZERO),
         RigidBody::Static,
-        crate_collider.clone(),
+        back_collider,
     ));
     commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
+        Mesh2d(meshes.add(Rectangle::new(424., 256.))),
         MeshMaterial2d(materials.add(BlurMaterial {
             settings: BlurSettings::default(),
-            texture: asset_server.load("crate.png"),
+            texture: asset_server.load("world/simplified/level_0/mid.png"),
         })),
-        Transform::default().with_translation(Vec3::new(-50.0, -200.0, 5.0)),
+        Transform::default().with_translation(Vec3::Z * 5.),
         RigidBody::Static,
-        crate_collider,
+        mid_collider,
     ));
     commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(50.0, 50.0))),
+        Mesh2d(meshes.add(Rectangle::new(424., 256.))),
+        MeshMaterial2d(materials.add(BlurMaterial {
+            settings: BlurSettings::default(),
+            texture: asset_server.load("world/simplified/level_0/front.png"),
+        })),
+        Transform::default().with_translation(Vec3::Z * 10.),
+        RigidBody::Static,
+        front_collider,
+    ));
+
+    commands.spawn((
+        Mesh2d(meshes.add(Rectangle::new(16.0, 16.0))),
         MeshMaterial2d(color_materials.add(ColorMaterial {
             color: Color::Srgba(Srgba {
                 red: 1.0,
@@ -112,9 +150,9 @@ fn setup(
             }),
             ..default()
         })),
-        Transform::default().with_translation(Vec3::new(-100.0, 500.0, 10.0)),
+        Transform::default().with_translation(Vec3::new(-187.0, 68.0, 20.)),
         RigidBody::Dynamic,
-        Collider::rectangle(50.0, 50.0),
+        Collider::rectangle(16.0, 16.0),
         PlayerCharacter,
     ));
 
@@ -197,7 +235,7 @@ fn update_material_blur(
     for (handle, transform) in q.iter() {
         if let Some(material) = materials.get_mut(handle) {
             let depth = transform.translation().z;
-            material.settings.blur_intensity = (focus_depth.0 - depth).abs() * 10.0;
+            material.settings.blur_intensity = (focus_depth.0 - depth).abs() * 1.5;
         }
     }
 }
@@ -253,7 +291,7 @@ fn log_cursor_clicks(
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 struct PlayerCharacter;
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
