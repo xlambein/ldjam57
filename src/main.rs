@@ -42,13 +42,14 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<BlurMaterial>>,
 ) {
-    commands.spawn((Camera2d, Transform::from_scale(Vec3::splat(0.5))));
+    commands.spawn(Camera2d);
     commands.spawn((
         Mesh2d(meshes.add(Cuboid::default())),
         MeshMaterial2d(materials.add(BlurMaterial {
             blur_intensity: 0.0,
             texture: asset_server.load("computer.png"),
         })),
+        Transform::default().with_scale(Vec3::splat(512.)),
     ));
 }
 
@@ -64,5 +65,9 @@ struct BlurMaterial {
 impl bevy::sprite::Material2d for BlurMaterial {
     fn fragment_shader() -> ShaderRef {
         "shaders/blur.wgsl".into()
+    }
+
+    fn alpha_mode(&self) -> bevy::sprite::AlphaMode2d {
+        bevy::sprite::AlphaMode2d::Blend
     }
 }
