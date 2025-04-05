@@ -4,10 +4,12 @@ use avian2d::prelude::*;
 use bevy::{
     input::mouse::{MouseButtonInput, MouseWheel},
     prelude::*,
-    // render::camera::ScalingMode,
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
-use bevy_ecs_ldtk::{LdtkSettings, LevelSpawnBehavior};
+use bevy_ecs_ldtk::{
+    app::{LdtkEntityAppExt, LdtkIntCellAppExt},
+    utils::grid_coords_to_translation,
+};
 use global_cursor::GlobalCursor;
 
 fn main() {
@@ -27,22 +29,23 @@ fn main() {
                 // Disable smoothing for better pixel art
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins(bevy_ecs_ldtk::LdtkPlugin)
-        .insert_resource(bevy_ecs_ldtk::LevelSelection::index(0))
-        .insert_resource(bevy_ecs_ldtk::LdtkSettings {
-            level_spawn_behavior: LevelSpawnBehavior::UseWorldTranslation {
-                load_level_neighbors: false,
-            },
-            ..Default::default()
-        })
         .add_plugins((
+            bevy_ecs_ldtk::LdtkPlugin,
             bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
             PhysicsPlugins::default(),
             global_cursor::GlobalCursorPlugin,
         ))
+        .insert_resource(bevy_ecs_ldtk::LevelSelection::index(0))
+        .insert_resource(bevy_ecs_ldtk::LdtkSettings {
+            level_spawn_behavior: bevy_ecs_ldtk::LevelSpawnBehavior::UseZeroTranslation,
+            ..Default::default()
+        })
+        .register_ldtk_int_cell_for_layer::<CollisionBundle>("collision", 1)
+        .register_ldtk_entity::<PlayerBundle>("player")
         .insert_resource(Gravity(avian2d::math::Vector::NEG_Y * 9.81 * 100.0))
-        .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Startup, setup)
+        .add_systems(Update, quit_on_ctrl_q)
+        .add_systems(Update, (process_player, process_new_level_geometry))
         .add_systems(Update, update_material_blur)
         .add_systems(Update, update_focus_depth)
         .add_systems(Update, update_collider_on_focus)
@@ -53,7 +56,106 @@ fn main() {
 }
 
 #[derive(Default, Bundle, bevy_ecs_ldtk::LdtkEntity)]
-struct PlayerBundle {}
+struct PlayerBundle {
+    player: PlayerCharacter,
+    #[grid_coords]
+    grid_coords: bevy_ecs_ldtk::GridCoords,
+}
+
+fn process_player(
+    mut commands: Commands,
+    new_players: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<PlayerCharacter>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut color_materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, grid_coords) in new_players.iter() {
+        commands.entity(entity).insert((
+            PlayerCharacter,
+            Mesh2d(meshes.add(Rectangle::new(24.0, 24.0))),
+            MeshMaterial2d(color_materials.add(ColorMaterial {
+                color: Color::srgba(0.8, 0.3, 0.2, 1.0),
+                ..Default::default()
+            })),
+            Transform::from_translation(
+                bevy_ecs_ldtk::utils::grid_coords_to_translation(*grid_coords, IVec2::splat(8))
+                    .extend(10.0),
+            ),
+            RigidBody::Dynamic,
+            Collider::rectangle(24.0, 24.0),
+        ));
+    }
+}
+
+#[derive(Component, Default)]
+struct LevelGeometry;
+
+#[derive(Default, Bundle, bevy_ecs_ldtk::LdtkIntCell)]
+struct CollisionBundle {
+    geometry: LevelGeometry,
+}
+
+fn process_new_level_geometry(
+    mut commands: Commands,
+    new_level_geometry: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<LevelGeometry>>,
+) {
+    for (entity, grid_coords) in new_level_geometry.iter() {
+        let translation = grid_coords_to_translation(*grid_coords, IVec2::splat(4)).extend(0.0);
+        commands.entity(entity).insert((
+            Transform::from_translation(translation),
+            RigidBody::Static,
+            Collider::rectangle(4.0, 4.0),
+        ));
+    }
+}
+
+#[derive(Component, Default)]
+struct BackGeometry;
+
+#[derive(Default, Bundle, bevy_ecs_ldtk::LdtkIntCell)]
+struct BackGeometryBundle {
+    back_geometry: BackGeometry,
+}
+
+#[derive(Component, Default)]
+struct MidGeometry;
+
+#[derive(Default, Bundle, bevy_ecs_ldtk::LdtkIntCell)]
+struct MidGeometryBundle {
+    back_geometry: MidGeometry,
+}
+
+#[derive(Component, Default)]
+struct FrontGeometry;
+
+#[derive(Default, Bundle, bevy_ecs_ldtk::LdtkIntCell)]
+struct FrontGeometryBundle {
+    back_geometry: FrontGeometry,
+}
+
+fn process_new_z_geometry(
+    mut commands: Commands,
+    new_back_geometry: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<BackGeometry>>,
+    new_mid_geometry: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<MidGeometry>>,
+    new_front_geometry: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<FrontGeometry>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    ldtk_assets: Res<Assets<LdtkAsset>>,
+) {
+    for (entity, grid_coords) in new_back_geometry.iter() {
+        commands.entity(entity).insert((
+            Transform::from_translation(
+                bevy_ecs_ldtk::utils::grid_coords_to_translation(*grid_coords, IVec2::splat(8))
+                    .extend(0.),
+            ),
+            Mesh2d(meshes.add(Rectangle::new(8.0, 8.0))),
+            // MeshMaterial2d(materials.add(BlurMaterial {
+            //     settings: BlurSettings::default(),
+            //     texture: asset_server.load("crate.png"),
+            // }))
+        ));
+    }
+    for (entity, grid_coords) in new_mid_geometry.iter() {}
+    for (entity, grid_coords) in new_front_geometry.iter() {}
+}
 
 fn quit_on_ctrl_q(keys: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight])
@@ -63,73 +165,48 @@ fn quit_on_ctrl_q(keys: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit
     }
 }
 
-fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<BlurMaterial>>,
-    mut color_materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let crate_collider = Collider::convex_hull(vec![
-        Vec2::new(-87.886734, 81.5586),
-        Vec2::new(37.378876, 85.45703),
-        Vec2::new(94.66406, 72.66406),
-        Vec2::new(90.30469, -63.886715),
-        Vec2::new(-47.195297, -79.3164),
-        Vec2::new(-85.39064, -44.48046),
-    ])
-    .unwrap();
-
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((Camera2d, global_cursor::MainCamera));
-    commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
-        MeshMaterial2d(materials.add(BlurMaterial {
-            settings: BlurSettings::default(),
-            texture: asset_server.load("crate.png"),
-        })),
-        Transform::default().with_translation(Vec3::new(-100.0, -100.0, 0.0)),
-        RigidBody::Static,
-        crate_collider.clone(),
-    ));
-    commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
-        MeshMaterial2d(materials.add(BlurMaterial {
-            settings: BlurSettings::default(),
-            texture: asset_server.load("crate.png"),
-        })),
-        Transform::default().with_translation(Vec3::new(-50.0, -200.0, 5.0)),
-        RigidBody::Static,
-        crate_collider,
-    ));
-    commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(50.0, 50.0))),
-        MeshMaterial2d(color_materials.add(ColorMaterial {
-            color: Color::Srgba(Srgba {
-                red: 1.0,
-                green: 0.2,
-                blue: 0.3,
-                alpha: 1.0,
-            }),
-            ..default()
-        })),
-        Transform::default().with_translation(Vec3::new(-100.0, 500.0, 10.0)),
-        RigidBody::Dynamic,
-        Collider::rectangle(50.0, 50.0),
-        PlayerCharacter,
-    ));
     // commands.spawn((
-    //     Camera2d,
-    //     OrthographicProjection {
-    //         scale: 0.5,
-    //         ..OrthographicProjection::default_2d()
-    //     },
-    //     // TODO: this is probably wrong
-    //     Transform::from_xyz(1080.0 / 4.0, 720.0 / 4.0, 0.0),
+    //     Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
+    //     MeshMaterial2d(materials.add(BlurMaterial {
+    //         settings: BlurSettings::default(),
+    //         texture: asset_server.load("crate.png"),
+    //     })),
+    //     Transform::default().with_translation(Vec3::new(-100.0, -100.0, 0.0)),
+    //     RigidBody::Static,
+    //     crate_collider.clone(),
     // ));
-    // commands.spawn(bevy_ecs_ldtk::LdtkWorldBundle {
-    //     ldtk_handle: asset_server.load("world.ldtk").into(),
-    //     ..Default::default()
-    // });
+    // commands.spawn((
+    //     Mesh2d(meshes.add(Rectangle::new(259.0, 194.0))),
+    //     MeshMaterial2d(materials.add(BlurMaterial {
+    //         settings: BlurSettings::default(),
+    //         texture: asset_server.load("crate.png"),
+    //     })),
+    //     Transform::default().with_translation(Vec3::new(-50.0, -200.0, 5.0)),
+    //     RigidBody::Static,
+    //     crate_collider,
+    // ));
+    // commands.spawn((
+    //     Mesh2d(meshes.add(Rectangle::new(50.0, 50.0))),
+    //     MeshMaterial2d(color_materials.add(ColorMaterial {
+    //         color: Color::Srgba(Srgba {
+    //             red: 1.0,
+    //             green: 0.2,
+    //             blue: 0.3,
+    //             alpha: 1.0,
+    //         }),
+    //         ..default()
+    //     })),
+    //     Transform::default().with_translation(Vec3::new(-100.0, 500.0, 10.0)),
+    //     RigidBody::Dynamic,
+    //     Collider::rectangle(50.0, 50.0),
+    //     PlayerCharacter,
+    // ));
+    commands.spawn(bevy_ecs_ldtk::LdtkWorldBundle {
+        ldtk_handle: asset_server.load("world.ldtk").into(),
+        ..Default::default()
+    });
 }
 
 const MIN_FOCUS_DEPTH: f32 = 0.0;
@@ -204,7 +281,7 @@ fn log_cursor_clicks(
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 struct PlayerCharacter;
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
