@@ -23,6 +23,7 @@ fn main() {
         .add_plugins((bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),))
         .add_systems(Update, quit_on_ctrl_q)
         .add_systems(Startup, setup)
+        .add_systems(Update, update_material_blur)
         .run();
 }
 
@@ -47,7 +48,28 @@ fn setup(
             blur_intensity: 0.0,
             texture: asset_server.load("computer.png"),
         })),
+        Transform::default().with_translation(Vec3::new(-100.0, -50.0, 0.0)),
     ));
+    commands.spawn((
+        Mesh2d(meshes.add(Rectangle::new(1600.0, 1062.0))),
+        MeshMaterial2d(materials.add(BlurMaterial {
+            blur_intensity: 0.0,
+            texture: asset_server.load("computer.png"),
+        })),
+        Transform::default().with_translation(Vec3::new(200.0, 50.0, 1.0)),
+    ));
+}
+
+fn update_material_blur(
+    q: Query<&MeshMaterial2d<BlurMaterial>>,
+    mut materials: ResMut<Assets<BlurMaterial>>,
+    time: Res<Time>,
+) {
+    for handle in q.iter() {
+        if let Some(material) = materials.get_mut(handle) {
+            material.blur_intensity = time.elapsed_secs().sin().abs();
+        }
+    }
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]

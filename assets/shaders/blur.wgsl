@@ -6,8 +6,9 @@
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    let kernel_size = 5;
-    let upper = (kernel_size - 1) / 2;
+    // let kernel_size = (blur_intensity);
+    let upper = i32(blur_intensity * 5.0);
+    let kernel_size = upper * 2 + 1;
     let texture_size = vec2<f32>(textureDimensions(texture));
     // TODO we don't want to average over texels, but instead over viewport pixels
     let texel_size = 1.0 / texture_size * 5.0;
