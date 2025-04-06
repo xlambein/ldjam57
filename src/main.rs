@@ -64,6 +64,8 @@ fn quit_on_ctrl_q(keys: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit
     }
 }
 
+const START_POSITION: Vec3 = Vec3::new(-187.0, 68.0, 20.);
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -154,10 +156,10 @@ fn setup(
             }),
             ..default()
         })),
-        Transform::default().with_translation(Vec3::new(-187.0, 68.0, 20.)),
+        Transform::default().with_translation(START_POSITION),
         RigidBody::Dynamic,
         character_collider,
-        // LockedAxes::ROTATION_LOCKED,
+        LockedAxes::ROTATION_LOCKED,
         Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
         PlayerCharacter::default(),
         LinearDamping(1.0),
@@ -280,13 +282,15 @@ fn update_focus_depth(
 }
 
 fn update_player_position(
-    mut q: Query<(Entity, &PlayerCharacter, &mut Transform)>,
+    mut q: Query<(&mut LinearVelocity, &mut PlayerCharacter, &mut Transform)>,
     window_q: Query<&Window>,
 ) {
     let window = window_q.single();
-    for (_, _, mut transform) in q.iter_mut() {
+    for (mut velocity, mut character, mut transform) in q.iter_mut() {
         if transform.translation.y < (-window.resolution.height() / 2.0) {
-            transform.translation.y *= -1.0;
+            velocity.0 = Vec2::ZERO;
+            transform.translation = START_POSITION.with_y(-transform.translation.y);
+            character.direction = Direction::Right;
         }
     }
 }
@@ -376,11 +380,12 @@ fn player_character_movement(
     let delta_time = time.delta_secs_f64().adjust_precision();
 
     for (entity, mut character, mut linear_velocity, position) in &mut controllers {
-        let lambda = 5.0;
-        linear_velocity.x = linear_velocity.x.lerp(
-            character.direction.x() * 100.0,
-            1.0 - (-lambda * delta_time).exp(),
-        );
+        linear_velocity.x += character.direction.x() * 750.0 * delta_time;
+        // let lambda = 5.0;
+        // linear_velocity.x = linear_velocity.x.lerp(
+        //     character.direction.x() * 200.0,
+        //     1.0 - (-lambda * delta_time).exp(),
+        // );
 
         let dir = match character.direction {
             Direction::Left => Dir2::NEG_X,
