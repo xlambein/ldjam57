@@ -2,10 +2,14 @@ mod global_cursor;
 
 use avian2d::prelude::*;
 use bevy::{
-    input::mouse::{MouseButtonInput, MouseWheel},
+    input::{
+        common_conditions::{input_just_pressed, input_just_released},
+        mouse::{AccumulatedMouseMotion, MouseButtonInput, MouseWheel},
+    },
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
+use bevy_aseprite_ultra::prelude::*;
 use global_cursor::GlobalCursor;
 
 fn main() {
@@ -29,6 +33,7 @@ fn main() {
             bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
             PhysicsPlugins::default(),
             global_cursor::GlobalCursorPlugin,
+            AsepriteUltraPlugin,
         ))
         .insert_resource(Gravity(avian2d::math::Vector::NEG_Y * 9.81 * 100.0))
         .add_systems(Update, quit_on_ctrl_q)
@@ -38,6 +43,14 @@ fn main() {
         .add_systems(Update, update_collider_on_focus)
         .add_systems(Update, update_player_position)
         .add_systems(Update, log_cursor_clicks)
+        .add_systems(
+            Update,
+            (
+                wheel_enable.run_if(input_just_pressed(MouseButton::Left)),
+                wheel_disable.run_if(input_just_released(MouseButton::Left)),
+                wheel_scroll_focus,
+            ),
+        )
         .insert_resource(FocusDepth(0.0))
         .run();
 }
@@ -104,14 +117,77 @@ fn setup(
         Collider::rectangle(50.0, 50.0),
         PlayerCharacter,
     ));
+
+    commands.spawn((
+        Sprite::default(),
+        AseSpriteAnimation {
+            aseprite: asset_server.load("wheel.aseprite"),
+            animation: Animation::tag("scroll"),
+        },
+        ManualTick,
+        Wheel,
+        Transform::default()
+            .with_translation(Vec3::new(200.0, 0.0, 100.0))
+            .with_scale(Vec2::splat(2.0).extend(1.0)),
+    ));
 }
 
 const MIN_FOCUS_DEPTH: f32 = 0.0;
 const MAX_FOCUS_DEPTH: f32 = 10.0;
 const FOCUS_COLLISION_THRESHOLD: f32 = 1.5;
 
+#[derive(Component)]
+struct Wheel;
+
+#[derive(Component)]
+struct WheelEnabled;
+
+fn wheel_enable(
+    mut commands: Commands,
+    q: Query<(Entity, &GlobalTransform), With<Wheel>>,
+    cursor: Res<GlobalCursor>,
+) {
+    const SIZE: Vec2 = Vec2::new(88.0, 32.0);
+    for (entity, transform) in q.iter() {
+        let rect = Rect::from_center_size(
+            transform.translation().truncate(),
+            SIZE * transform.scale().truncate(),
+        );
+        if rect.contains(cursor.position()) {
+            commands.entity(entity).insert(WheelEnabled);
+        }
+    }
+}
+
+fn wheel_disable(mut commands: Commands, q: Query<Entity, With<WheelEnabled>>) {
+    for entity in q.iter() {
+        commands.entity(entity).remove::<WheelEnabled>();
+    }
+}
+
+fn wheel_scroll_focus(
+    mut q: Query<(&mut AnimationState,), With<WheelEnabled>>,
+    accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
+    mut focus_depth: ResMut<FocusDepth>,
+) {
+    if q.is_empty() {
+        return;
+    }
+    focus_depth.increase(accumulated_mouse_motion.delta.x / 20.0);
+    for (mut animation_state,) in q.iter_mut() {
+        animation_state.current_frame = (focus_depth.0 * 3.0) as u16 % 3;
+    }
+}
+
 #[derive(Resource)]
 struct FocusDepth(f32);
+
+impl FocusDepth {
+    fn increase(&mut self, amount: f32) {
+        self.0 += amount;
+        self.0 = f32::min(MAX_FOCUS_DEPTH, f32::max(MIN_FOCUS_DEPTH, self.0));
+    }
+}
 
 fn update_material_blur(
     q: Query<(&MeshMaterial2d<BlurMaterial>, &GlobalTransform)>,
@@ -147,11 +223,10 @@ fn update_focus_depth(
 ) {
     for event in mouse_wheel_events.read() {
         if event.y > 0.0 {
-            focus_depth.0 += 0.2;
+            focus_depth.increase(0.2);
         } else {
-            focus_depth.0 -= 0.2;
+            focus_depth.increase(-0.2);
         }
-        focus_depth.0 = f32::min(MAX_FOCUS_DEPTH, f32::max(MIN_FOCUS_DEPTH, focus_depth.0));
     }
 }
 
