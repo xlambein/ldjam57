@@ -1,6 +1,6 @@
 mod global_cursor;
 
-use avian2d::prelude::*;
+use avian2d::{math::AdjustPrecision as _, prelude::*};
 use bevy::{
     input::{
         common_conditions::{input_just_pressed, input_just_released},
@@ -51,6 +51,7 @@ fn main() {
                 wheel_scroll_focus,
             ),
         )
+        .add_systems(Update, (update_grounded, player_character_movement))
         .insert_resource(FocusDepth(0.0))
         .run();
 }
@@ -125,8 +126,8 @@ fn setup(
             texture: asset_server.load("world/simplified/level_0/mid.png"),
         })),
         Transform::default().with_translation(Vec3::Z * 5.),
-        RigidBody::Static,
         mid_collider,
+        RigidBody::Static,
     ));
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(424., 256.))),
@@ -139,6 +140,9 @@ fn setup(
         front_collider,
     ));
 
+    let character_collider = Collider::rectangle(16.0, 16.0);
+    let mut caster_shape = character_collider.clone();
+    caster_shape.set_scale(avian2d::math::Vector::ONE * 0.99, 10);
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(16.0, 16.0))),
         MeshMaterial2d(color_materials.add(ColorMaterial {
@@ -152,8 +156,14 @@ fn setup(
         })),
         Transform::default().with_translation(Vec3::new(-187.0, 68.0, 20.)),
         RigidBody::Dynamic,
-        Collider::rectangle(16.0, 16.0),
-        PlayerCharacter,
+        character_collider,
+        // LockedAxes::ROTATION_LOCKED,
+        Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
+        PlayerCharacter::default(),
+        LinearDamping(1.0),
+        Friction::new(0.1),
+        ShapeCaster::new(caster_shape, avian2d::math::Vector::ZERO, 0.0, Dir2::NEG_Y)
+            .with_max_distance(10.0),
     ));
 
     commands.spawn((
@@ -175,6 +185,7 @@ const MAX_FOCUS_DEPTH: f32 = 10.0;
 const FOCUS_COLLISION_THRESHOLD: f32 = 1.5;
 
 #[derive(Component)]
+#[component(storage = "SparseSet")]
 struct Wheel;
 
 #[derive(Component)]
@@ -292,7 +303,103 @@ fn log_cursor_clicks(
 }
 
 #[derive(Component, Default)]
-struct PlayerCharacter;
+struct PlayerCharacter {
+    direction: Direction,
+}
+
+#[derive(Debug, Default)]
+enum Direction {
+    Left,
+    #[default]
+    Right,
+}
+
+impl Direction {
+    fn x(&self) -> f32 {
+        match self {
+            Direction::Left => -1.0,
+            Direction::Right => 1.0,
+        }
+    }
+
+    fn reverse(&mut self) {
+        match self {
+            Direction::Left => *self = Direction::Right,
+            Direction::Right => *self = Direction::Left,
+        }
+    }
+}
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+struct Grounded;
+
+/// Updates the [`Grounded`] status for character controllers.
+///
+/// Source: https://github.com/Jondolf/avian/blob/main/crates/avian2d/examples/dynamic_character_2d/plugin.rs
+fn update_grounded(
+    mut commands: Commands,
+    mut query: Query<(Entity, &ShapeHits, &Rotation), With<PlayerCharacter>>,
+) {
+    for (entity, hits, rotation) in &mut query {
+        // The character is grounded if the shape caster has a hit with a normal
+        // that isn't too steep.
+        let is_grounded = hits.iter().any(|hit| {
+            let angle = avian2d::math::PI * 0.45;
+            (rotation * -hit.normal2)
+                .angle_to(avian2d::math::Vector::Y)
+                .abs()
+                <= angle
+        });
+
+        if is_grounded {
+            commands.entity(entity).insert(Grounded);
+        } else {
+            commands.entity(entity).remove::<Grounded>();
+        }
+    }
+}
+
+/// Responds to [`MovementAction`] events and moves character controllers accordingly.
+///
+/// Source: https://github.com/Jondolf/avian/blob/main/crates/avian2d/examples/dynamic_character_2d/plugin.rs
+fn player_character_movement(
+    time: Res<Time>,
+    mut controllers: Query<
+        (Entity, &mut PlayerCharacter, &mut LinearVelocity, &Position),
+        With<Grounded>,
+    >,
+    spatial_query: SpatialQuery,
+) {
+    // Precision is adjusted so that the example works with
+    // both the `f32` and `f64` features. Otherwise you don't need this.
+    let delta_time = time.delta_secs_f64().adjust_precision();
+
+    for (entity, mut character, mut linear_velocity, position) in &mut controllers {
+        let lambda = 5.0;
+        linear_velocity.x = linear_velocity.x.lerp(
+            character.direction.x() * 100.0,
+            1.0 - (-lambda * delta_time).exp(),
+        );
+
+        let dir = match character.direction {
+            Direction::Left => Dir2::NEG_X,
+            Direction::Right => Dir2::X,
+        };
+        if spatial_query
+            .cast_ray(
+                position.0,
+                dir,
+                30.0,
+                false,
+                &SpatialQueryFilter::from_excluded_entities([entity]),
+            )
+            .is_some()
+        {
+            character.direction.reverse();
+        }
+    }
+}
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 struct BlurMaterial {
