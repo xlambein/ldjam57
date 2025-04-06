@@ -42,6 +42,8 @@ fn main() {
         .add_systems(Update, update_focus_depth)
         .add_systems(Update, update_player_position)
         .add_systems(Update, log_cursor_clicks)
+        .add_systems(Update, on_asset_load)
+        .add_systems(Update, update_collider_on_focus)
         .add_systems(
             Update,
             (
@@ -93,8 +95,12 @@ fn setup(
             texture: asset_server.load("world/simplified/level_0/_composite.png"),
             depths: asset_server.load("world/simplified/level_0/position-int.png"),
         })),
-        Transform::default(), //.with_translation(Vec3::Z * 10.),
+        Transform::default(),
         RigidBody::Static,
+        LevelColliderImages {
+            collision: asset_server.load("world/simplified/level_0/collision-int.png"),
+            positions: asset_server.load("world/simplified/level_0/position-int.png"),
+        },
     ));
 
     let character_collider = Collider::rectangle(16.0, 16.0);
@@ -133,6 +139,98 @@ fn setup(
             .with_scale(Vec2::splat(2.0).extend(1.0)),
     ));
 }
+
+#[derive(Component)]
+struct LevelColliderImages {
+    collision: Handle<Image>,
+    positions: Handle<Image>,
+}
+
+fn on_asset_load(
+    mut commands: Commands,
+    images: Res<Assets<Image>>,
+    q: Query<(Entity, &LevelColliderImages)>,
+    // mut meshes: ResMut<Assets<Mesh>>,
+    // mut color_materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, lci) in q.iter() {
+        let Some(collisions) = images.get(&lci.collision) else {
+            continue;
+        };
+        let Some(positions) = images.get(&lci.positions) else {
+            continue;
+        };
+
+        let mut collision_points = vec![];
+
+        let collisions_size = collisions.size();
+        for x in 0..collisions_size.x {
+            for y in 0..collisions_size.y {
+                let Ok(color) = collisions.get_color_at(x, y) else {
+                    unreachable!();
+                };
+
+                let Ok(position) = positions.get_color_at(x / 2, y / 2) else {
+                    unreachable!()
+                };
+
+                if color.alpha() > 0. {
+                    let depth = position.to_srgba().red * 10.;
+
+                    collision_points.push((x, y, depth));
+                }
+            }
+        }
+        collision_points.push((0, 0, 0.0));
+
+        let mut first_point = None;
+        let mut last_point = None;
+        for (x, y, depth) in collision_points {
+            if first_point.map_or(false, |p: (u32, u32, f32)| p.1 == y && p.2 == depth) {
+                last_point = Some((x, y, depth));
+            } else {
+                // Create a new collider for this group.
+                if let Some((first_point, last_point)) = first_point.zip(last_point) {
+                    let x0 = first_point.0 as f32 * 4.0 - collisions_size.x as f32 * 4.0 / 2.0;
+                    let x1 = (last_point.0 + 1) as f32 * 4.0 - collisions_size.x as f32 * 4.0 / 2.0;
+                    let y1 = collisions_size.y as f32 * 4.0 / 2.0 - first_point.1 as f32 * 4.0;
+                    let y0 =
+                        collisions_size.y as f32 * 4.0 / 2.0 - (first_point.1 + 1) as f32 * 4.0;
+                    let depth = first_point.2;
+                    commands.spawn((
+                        // Mesh2d(meshes.add(Rectangle::new(x1 - x0, y1 - y0))),
+                        // MeshMaterial2d(color_materials.add(ColorMaterial {
+                        //     color: Color::Srgba(Srgba {
+                        //         red: 0.5,
+                        //         green: 0.7,
+                        //         blue: 0.7,
+                        //         alpha: 1.0,
+                        //     }),
+                        //     ..default()
+                        // })),
+                        Floor,
+                        RigidBody::Static,
+                        Collider::rectangle(x1 - x0, y1 - y0),
+                        Transform::default().with_translation(Vec3::new(
+                            (x0 + x1) / 2.0,
+                            (y0 + y1) / 2.0,
+                            depth,
+                        )),
+                    ));
+                }
+
+                // Start a new group
+                first_point = Some((x, y, depth));
+                last_point = first_point;
+            }
+        }
+
+        commands.entity(entity).remove::<LevelColliderImages>();
+    }
+}
+
+#[derive(Component)]
+struct Floor;
 
 const MIN_FOCUS_DEPTH: f32 = 0.0;
 const MAX_FOCUS_DEPTH: f32 = 10.0;
@@ -204,21 +302,23 @@ fn update_level_blur(
     }
 }
 
-// TODO adapt this to new blurring mechanic
-// fn update_collider_on_focus(
-//     mut commands: Commands,
-//     q: Query<(Entity, &GlobalTransform, &MeshMaterial2d<BlurMaterial>)>,
-//     focus_depth: Res<FocusDepth>,
-// ) {
-//     for (entity, transform, _) in q.iter() {
-//         let depth = transform.translation().z;
-//         if (focus_depth.0 - depth).abs() > FOCUS_COLLISION_THRESHOLD {
-//             commands.entity(entity).insert(ColliderDisabled);
-//         } else {
-//             commands.entity(entity).remove::<ColliderDisabled>();
-//         }
-//     }
-// }
+fn update_collider_on_focus(
+    mut commands: Commands,
+    q: Query<(Entity, &GlobalTransform), With<Floor>>,
+    focus_depth: Res<FocusDepth>,
+) {
+    for (entity, transform) in q.iter() {
+        let depth = transform.translation().z;
+        if (focus_depth.0 - depth).abs() > FOCUS_COLLISION_THRESHOLD {
+            commands
+                .entity(entity)
+                .insert((ColliderDisabled, Visibility::Hidden));
+        } else {
+            commands.entity(entity).insert(Visibility::Visible);
+            commands.entity(entity).remove::<ColliderDisabled>();
+        }
+    }
+}
 
 fn update_focus_depth(
     mut focus_depth: ResMut<FocusDepth>,
