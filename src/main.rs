@@ -138,7 +138,6 @@ fn process_new_z_geometry(
     new_mid_geometry: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<MidGeometry>>,
     new_front_geometry: Query<(Entity, &bevy_ecs_ldtk::GridCoords), Added<FrontGeometry>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    ldtk_assets: Res<Assets<LdtkAsset>>,
 ) {
     for (entity, grid_coords) in new_back_geometry.iter() {
         commands.entity(entity).insert((
