@@ -1,0 +1,30 @@
+{
+	"identifier": "level_0",
+	"uniqueIdentifer": "76402200-1030-11f0-9ab6-5d011611cef9",
+	"x": 0,
+	"y": 0,
+	"width": 424,
+	"height": 256,
+	"bgColor": "#000000",
+	"neighbourLevels": [],
+	"customFields" : {},
+	"layers": [
+		"base.png",
+		"tiles.png"
+	],
+	"entities": {
+		"player": [
+			{
+				"id": "player",
+				"iid": "0baf05c0-1030-11f0-b74a-7d8615a1fead",
+				"layer": "entities",
+				"x": 24,
+				"y": 72,
+				"width": 8,
+				"height": 8,
+				"color": 12470831,
+				"customFields" : {}
+			}
+		]
+	}
+}
