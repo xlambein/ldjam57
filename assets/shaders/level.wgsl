@@ -1,10 +1,5 @@
-#import bevy_sprite::{
-    mesh2d_vertex_output::VertexOutput,
-    sprite_view_bindings::view,
-}
-#import bevy_pbr::{
-    utils::coords_to_viewport_uv,
-}
+#import bevy_sprite::mesh2d_vertex_output::VertexOutput
+
 
 struct LevelSettings {
     focus_depth: f32,
@@ -20,7 +15,7 @@ struct LevelSettings {
 @group(2) @binding(3) var depths: texture_2d<f32>;
 @group(2) @binding(4) var depths_sampler: sampler;
 
-const BLUR_SCALING: f32 = 1.5;
+const BLUR_SCALING: f32 = 0.2;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -36,7 +31,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let upper = 5;
     let kernel_size = upper * 2 + 1;
-    let step_size = 1.0 / view.viewport.zw * blur_intensity / f32(upper);
+    let step_size = 1.0 / texture_size * blur_intensity / f32(upper);
     var color = vec4(0.0);
     for (var x = -upper; x <= upper; x++) {
         for (var y = -upper; y <= upper; y++) {
