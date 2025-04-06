@@ -134,9 +134,7 @@ fn setup(
         },
         ManualTick,
         Wheel,
-        Transform::default()
-            .with_translation(Vec3::new(200.0, 0.0, 100.0))
-            .with_scale(Vec2::splat(2.0).extend(1.0)),
+        Transform::default().with_translation(Vec3::new(125.0, 75.0, 100.0)),
     ));
 }
 
@@ -276,7 +274,7 @@ fn wheel_scroll_focus(
     }
     focus_depth.increase(accumulated_mouse_motion.delta.x / 20.0);
     for (mut animation_state,) in q.iter_mut() {
-        animation_state.current_frame = (focus_depth.0 * 3.0) as u16 % 3;
+        animation_state.current_frame = (focus_depth.0 * 2.0) as u16 % 3;
     }
 }
 
