@@ -24,8 +24,19 @@ fn main() {
                         // Tells Wasm to resize the window according to the available canvas
                         fit_canvas_to_parent: true,
                         resolution: WindowResolution::new(948.0, 533.0),
+                        // Tells wasm not to override default event handling, like F5 and Ctrl+R
+                        prevent_default_event_handling: false,
                         ..default()
                     }),
+                    ..default()
+                })
+                .set(AssetPlugin {
+                    // This is required when publishing on itch.io, because otherwise we try to
+                    // fetch '*.meta' files that don't exist, and itch.io return 403 errors that are
+                    // treated as failures by Bevy.
+                    // See: https://github.com/bevyengine/bevy/issues/10157
+                    // and: https://github.com/bevyengine/bevy/issues/18002
+                    meta_check: bevy::asset::AssetMetaCheck::Never,
                     ..default()
                 })
                 // Disable smoothing for better pixel art
