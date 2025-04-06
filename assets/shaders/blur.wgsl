@@ -20,14 +20,10 @@ struct BlurSettings {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    // let kernel_size = (blur_intensity);
-    // let upper = i32(blur_intensity * 1.0);
-    let upper = 3;
+    let upper = 5;
     let kernel_size = upper * 2 + 1;
     let texture_size = vec2<f32>(textureDimensions(texture));
-    // I think? That `viewport.zw` gives me the scale of a visible pixel in the texture's own coordinates :P
-    let texel_size = 1.0 / view.viewport.zw * settings.blur_intensity;
-    // let texel_size = 1.0 / texture_size * blur_intensity; // Previous implementation
+    let texel_size = 1.0 / view.viewport.zw * settings.blur_intensity / f32(upper);
     var color = vec4(0.0);
     for (var x = -upper; x <= upper; x++) {
         for (var y = -upper; y <= upper; y++) {
@@ -38,6 +34,9 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     color /= (f32(kernel_size * kernel_size));
 
+    // Darken pixels out of focus
+    const DARKEST_DEPTH: f32 = 100.0;
+    color = vec4(color.rgb * (1.0 - settings.blur_intensity / (DARKEST_DEPTH + settings.blur_intensity)), color.a);
+
     return color;
-    // return textureSample(texture, texture_sampler, in.uv);
 }
