@@ -4,6 +4,7 @@
   entr,
   wasm-bindgen-cli,
   binaryen,
+  zip,
 }:
 writeScriptBin "just" ''
   #!/usr/bin/env -S ${just}/bin/just --working-directory . --justfile
@@ -44,6 +45,10 @@ writeScriptBin "just" ''
   [private]
   wasm-release:
     cargo build --profile wasm-release --target wasm32-unknown-unknown
+
+  # Build `www-opt` and create a ZIP archive
+  www-zip: www-opt
+    cd www && ${zip}/bin/zip -r ../target.zip *
 
   [private]
   wasm-bindgen: wasm-release

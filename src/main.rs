@@ -8,6 +8,7 @@ use bevy::{
     },
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
+    window::WindowResolution,
 };
 use bevy_aseprite_ultra::prelude::*;
 use global_cursor::GlobalCursor;
@@ -22,6 +23,7 @@ fn main() {
                         name: Some("ldjam57".into()),
                         // Tells Wasm to resize the window according to the available canvas
                         fit_canvas_to_parent: true,
+                        resolution: WindowResolution::new(948.0, 533.0),
                         ..default()
                     }),
                     ..default()
@@ -77,7 +79,7 @@ fn setup(
     commands.spawn((
         Camera2d,
         global_cursor::MainCamera,
-        Transform::default().with_scale(Vec3::splat(0.33)),
+        Transform::default().with_scale(Vec3::splat(0.5)),
     ));
 
     commands.spawn((
