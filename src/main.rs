@@ -30,7 +30,7 @@ fn main() {
                 .set(ImagePlugin::default_nearest()),
         )
         .add_plugins((
-            bevy::sprite::Material2dPlugin::<BlurMaterial>::default(),
+            bevy::sprite::Material2dPlugin::<LevelMaterial>::default(),
             PhysicsPlugins::default(),
             global_cursor::GlobalCursorPlugin,
             AsepriteUltraPlugin,
@@ -38,9 +38,8 @@ fn main() {
         .insert_resource(Gravity(avian2d::math::Vector::NEG_Y * 9.81 * 100.0))
         .add_systems(Startup, setup)
         .add_systems(Update, quit_on_ctrl_q)
-        .add_systems(Update, update_material_blur)
+        .add_systems(Update, update_level_blur)
         .add_systems(Update, update_focus_depth)
-        .add_systems(Update, update_collider_on_focus)
         .add_systems(Update, update_player_position)
         .add_systems(Update, log_cursor_clicks)
         .add_systems(
@@ -70,33 +69,9 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<BlurMaterial>>,
+    mut level_materials: ResMut<Assets<LevelMaterial>>,
     mut color_materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let back_collider = Collider::convex_hull(vec![
-        Vec2::new(-210.34375, 45.656258),
-        Vec2::new(-121.75392, 46.863293),
-        Vec2::new(-123.56251, 6.4258),
-        Vec2::new(-211.32423, 12.707018),
-    ])
-    .unwrap();
-
-    let mid_collider = Collider::convex_hull(vec![
-        Vec2::new(-90.46875, 6.0351415),
-        Vec2::new(0.980453, 4.503922),
-        Vec2::new(2.101593, -122.46483),
-        Vec2::new(-95.58983, -122.21875),
-    ])
-    .unwrap();
-
-    let front_collider = Collider::convex_hull(vec![
-        Vec2::new(66.339874, -56.17968),
-        Vec2::new(213.9531, -59.49609),
-        Vec2::new(71.07811, -107.27344),
-        Vec2::new(211.02737, -111.41797),
-    ])
-    .unwrap();
-
     commands.spawn((
         Camera2d,
         global_cursor::MainCamera,
@@ -113,33 +88,13 @@ fn setup(
 
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(424., 256.))),
-        MeshMaterial2d(materials.add(BlurMaterial {
-            settings: BlurSettings::default(),
-            texture: asset_server.load("world/simplified/level_0/back.png"),
+        MeshMaterial2d(level_materials.add(LevelMaterial {
+            settings: LevelSettings::default(),
+            texture: asset_server.load("world/simplified/level_0/_composite.png"),
+            depths: asset_server.load("world/simplified/level_0/position-int.png"),
         })),
-        Transform::default().with_translation(Vec3::ZERO),
+        Transform::default(), //.with_translation(Vec3::Z * 10.),
         RigidBody::Static,
-        back_collider,
-    ));
-    commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(424., 256.))),
-        MeshMaterial2d(materials.add(BlurMaterial {
-            settings: BlurSettings::default(),
-            texture: asset_server.load("world/simplified/level_0/mid.png"),
-        })),
-        Transform::default().with_translation(Vec3::Z * 5.),
-        mid_collider,
-        RigidBody::Static,
-    ));
-    commands.spawn((
-        Mesh2d(meshes.add(Rectangle::new(424., 256.))),
-        MeshMaterial2d(materials.add(BlurMaterial {
-            settings: BlurSettings::default(),
-            texture: asset_server.load("world/simplified/level_0/front.png"),
-        })),
-        Transform::default().with_translation(Vec3::Z * 10.),
-        RigidBody::Static,
-        front_collider,
     ));
 
     let character_collider = Collider::rectangle(16.0, 16.0);
@@ -237,33 +192,33 @@ impl FocusDepth {
     }
 }
 
-fn update_material_blur(
-    q: Query<(&MeshMaterial2d<BlurMaterial>, &GlobalTransform)>,
-    mut materials: ResMut<Assets<BlurMaterial>>,
+fn update_level_blur(
+    q: Query<&MeshMaterial2d<LevelMaterial>>,
+    mut materials: ResMut<Assets<LevelMaterial>>,
     focus_depth: Res<FocusDepth>,
 ) {
-    for (handle, transform) in q.iter() {
+    for handle in q.iter() {
         if let Some(material) = materials.get_mut(handle) {
-            let depth = transform.translation().z;
-            material.settings.blur_intensity = (focus_depth.0 - depth).abs() * 1.5;
+            material.settings.focus_depth = focus_depth.0;
         }
     }
 }
 
-fn update_collider_on_focus(
-    mut commands: Commands,
-    q: Query<(Entity, &GlobalTransform, &MeshMaterial2d<BlurMaterial>)>,
-    focus_depth: Res<FocusDepth>,
-) {
-    for (entity, transform, _) in q.iter() {
-        let depth = transform.translation().z;
-        if (focus_depth.0 - depth).abs() > FOCUS_COLLISION_THRESHOLD {
-            commands.entity(entity).insert(ColliderDisabled);
-        } else {
-            commands.entity(entity).remove::<ColliderDisabled>();
-        }
-    }
-}
+// TODO adapt this to new blurring mechanic
+// fn update_collider_on_focus(
+//     mut commands: Commands,
+//     q: Query<(Entity, &GlobalTransform, &MeshMaterial2d<BlurMaterial>)>,
+//     focus_depth: Res<FocusDepth>,
+// ) {
+//     for (entity, transform, _) in q.iter() {
+//         let depth = transform.translation().z;
+//         if (focus_depth.0 - depth).abs() > FOCUS_COLLISION_THRESHOLD {
+//             commands.entity(entity).insert(ColliderDisabled);
+//         } else {
+//             commands.entity(entity).remove::<ColliderDisabled>();
+//         }
+//     }
+// }
 
 fn update_focus_depth(
     mut focus_depth: ResMut<FocusDepth>,
@@ -405,36 +360,28 @@ fn player_character_movement(
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-struct BlurMaterial {
+struct LevelMaterial {
     #[uniform(0)]
-    settings: BlurSettings,
+    settings: LevelSettings,
     #[texture(1)]
     #[sampler(2)]
     texture: Handle<Image>,
+    #[texture(3)]
+    #[sampler(4)]
+    depths: Handle<Image>,
 }
 
-#[derive(ShaderType, Debug, Clone)]
-struct BlurSettings {
-    blur_intensity: f32,
+#[derive(ShaderType, Debug, Clone, Default)]
+struct LevelSettings {
+    focus_depth: f32,
     // WebGL2 structs must be 16 byte aligned.
     #[cfg(target_arch = "wasm32")]
     _webgl2_padding: Vec3,
 }
 
-impl Default for BlurSettings {
-    fn default() -> Self {
-        BlurSettings {
-            blur_intensity: 0.0,
-            // WebGL2 structs must be 16 byte aligned.
-            #[cfg(target_arch = "wasm32")]
-            _webgl2_padding: Vec3::ZERO,
-        }
-    }
-}
-
-impl bevy::sprite::Material2d for BlurMaterial {
+impl bevy::sprite::Material2d for LevelMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/blur.wgsl".into()
+        "shaders/level.wgsl".into()
     }
 
     fn alpha_mode(&self) -> bevy::sprite::AlphaMode2d {
