@@ -159,13 +159,10 @@ fn setup(
         Transform::default().with_translation(START_POSITION),
         RigidBody::Dynamic,
         character_collider,
-        LockedAxes::ROTATION_LOCKED,
         Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
         PlayerCharacter::default(),
         LinearDamping(1.0),
         Friction::new(0.1),
-        ShapeCaster::new(caster_shape, avian2d::math::Vector::ZERO, 0.0, Dir2::NEG_Y)
-            .with_max_distance(10.0),
     ));
 
     commands.spawn((
@@ -343,18 +340,19 @@ struct Grounded;
 /// Source: https://github.com/Jondolf/avian/blob/main/crates/avian2d/examples/dynamic_character_2d/plugin.rs
 fn update_grounded(
     mut commands: Commands,
-    mut query: Query<(Entity, &ShapeHits, &Rotation), With<PlayerCharacter>>,
+    mut query: Query<(Entity, &Position), With<PlayerCharacter>>,
+    spatial_query: SpatialQuery,
 ) {
-    for (entity, hits, rotation) in &mut query {
-        // The character is grounded if the shape caster has a hit with a normal
-        // that isn't too steep.
-        let is_grounded = hits.iter().any(|hit| {
-            let angle = avian2d::math::PI * 0.45;
-            (rotation * -hit.normal2)
-                .angle_to(avian2d::math::Vector::Y)
-                .abs()
-                <= angle
-        });
+    for (entity, position) in &mut query {
+        let is_grounded = spatial_query
+            .cast_ray(
+                position.0,
+                Dir2::NEG_Y,
+                10.0,
+                false,
+                &SpatialQueryFilter::from_excluded_entities([entity]),
+            )
+            .is_some();
 
         if is_grounded {
             commands.entity(entity).insert(Grounded);
@@ -395,7 +393,7 @@ fn player_character_movement(
             .cast_ray(
                 position.0,
                 dir,
-                30.0,
+                10.0,
                 false,
                 &SpatialQueryFilter::from_excluded_entities([entity]),
             )
