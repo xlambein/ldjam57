@@ -3,19 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <style>
-    body {
-      background: linear-gradient(135deg,
-          white 0%,
-          white 49%,
-          black 49%,
-          black 51%,
-          white 51%,
-          white 100%) repeat;
-      background-size: 20px 20px;
+    body,
+    html {
+      height: 100%;
     }
 
-    canvas {
-      background-color: white;
+    body {
+      background-color: lightgray;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .game-container {
+      width: 948px;
+      height: 533px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .lds-dual-ring {
+      display: inline-block;
+      position: absolute;
+      left: 0;
+      right: 0;
+      margin: auto;
+      width: 80px;
+      height: 80px;
+    }
+
+    .lds-dual-ring:after {
+      content: " ";
+      display: block;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 6px solid #888;
+      border-color: #888 transparent #888 transparent;
+      animation: lds-dual-ring 1.2s linear infinite;
+    }
+
+    @keyframes lds-dual-ring {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    #bevy {
+      z-index: 2;
     }
   </style>
   <title></title>
@@ -24,5 +65,12 @@
   import init from './target/index.js'
   init()
 </script>
+
+<body>
+  <div class="game-container">
+    <div class="lds-dual-ring"></div>
+    <canvas id="bevy"></canvas>
+  </div>
+</body>
 
 </html>

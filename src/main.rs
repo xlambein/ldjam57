@@ -21,6 +21,7 @@ fn main() {
                     primary_window: Some(Window {
                         title: "LDJam 57 - Depths".into(),
                         name: Some("ldjam57".into()),
+                        canvas: Some("#bevy".to_owned()),
                         // Tells Wasm to resize the window according to the available canvas
                         fit_canvas_to_parent: true,
                         resolution: WindowResolution::new(948.0, 533.0),
