@@ -1,14 +1,14 @@
 mod global_cursor;
 
-use avian2d::{math::AdjustPrecision as _, prelude::*};
+use avian2d::{math::AdjustPrecision, prelude::*};
 use bevy::{
     input::{
         common_conditions::{input_just_pressed, input_just_released},
-        mouse::{AccumulatedMouseMotion, MouseButtonInput, MouseWheel},
+        mouse::{AccumulatedMouseMotion, MouseWheel},
     },
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
-    window::WindowResolution,
+    window::{CursorOptions, WindowResolution},
 };
 use bevy_aseprite_ultra::prelude::*;
 use global_cursor::GlobalCursor;
@@ -26,6 +26,10 @@ fn main() {
                         resolution: WindowResolution::new(948.0, 533.0),
                         // Tells wasm not to override default event handling, like F5 and Ctrl+R
                         prevent_default_event_handling: false,
+                        cursor_options: CursorOptions {
+                            visible: false,
+                            ..default()
+                        },
                         ..default()
                     }),
                     ..default()
@@ -54,7 +58,10 @@ fn main() {
         .add_systems(Update, update_level_blur)
         .add_systems(Update, update_focus_depth)
         .add_systems(Update, update_player_position)
-        .add_systems(Update, log_cursor_clicks)
+        .add_systems(
+            Update,
+            log_cursor_position.run_if(input_just_pressed(MouseButton::Left)),
+        )
         .add_systems(Update, on_asset_load)
         .add_systems(Update, update_collider_on_focus)
         .add_systems(
@@ -63,6 +70,7 @@ fn main() {
                 wheel_enable.run_if(input_just_pressed(MouseButton::Left)),
                 wheel_disable.run_if(input_just_released(MouseButton::Left)),
                 wheel_scroll_focus,
+                update_shutter_position,
             ),
         )
         .add_systems(Update, (update_grounded, player_character_movement))
@@ -142,12 +150,14 @@ fn setup(
     commands.spawn((
         Sprite::default(),
         AseSpriteAnimation {
-            aseprite: asset_server.load("wheel.aseprite"),
-            animation: Animation::tag("scroll"),
+            aseprite: asset_server.load("shutter.aseprite"),
+            animation: Animation::tag("shutter"),
         },
         ManualTick,
         Wheel,
-        Transform::default().with_translation(Vec3::new(125.0, 75.0, 100.0)),
+        Transform::default()
+            .with_translation(Vec3::new(125.0, 75.0, 100.0))
+            .with_scale(Vec3::splat(2.0)),
     ));
 }
 
@@ -254,31 +264,16 @@ struct Wheel;
 #[derive(Component)]
 struct WheelEnabled;
 
-fn wheel_enable(
-    mut commands: Commands,
-    q: Query<(Entity, &GlobalTransform), With<Wheel>>,
-    cursor: Res<GlobalCursor>,
-) {
-    const SIZE: Vec2 = Vec2::new(88.0, 32.0);
-    for (entity, transform) in q.iter() {
-        let rect = Rect::from_center_size(
-            transform.translation().truncate(),
-            SIZE * transform.scale().truncate(),
-        );
-        if rect.contains(cursor.position()) {
-            commands.entity(entity).insert(WheelEnabled);
-        }
-    }
+fn wheel_enable(mut commands: Commands, q: Query<Entity, With<Wheel>>) {
+    commands.entity(q.single()).insert(WheelEnabled);
 }
 
 fn wheel_disable(mut commands: Commands, q: Query<Entity, With<WheelEnabled>>) {
-    for entity in q.iter() {
-        commands.entity(entity).remove::<WheelEnabled>();
-    }
+    commands.entity(q.single()).remove::<WheelEnabled>();
 }
 
 fn wheel_scroll_focus(
-    mut q: Query<(&mut AnimationState,), With<WheelEnabled>>,
+    mut q: Query<&mut AnimationState, With<WheelEnabled>>,
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
     mut focus_depth: ResMut<FocusDepth>,
 ) {
@@ -286,8 +281,29 @@ fn wheel_scroll_focus(
         return;
     }
     focus_depth.increase(accumulated_mouse_motion.delta.x / 20.0);
-    for (mut animation_state,) in q.iter_mut() {
-        animation_state.current_frame = (focus_depth.0 * 2.0) as u16 % 3;
+    const N_FRAMES: u16 = 7;
+    q.single_mut().current_frame =
+        1 + ((focus_depth.ratio() * N_FRAMES as f32) as u16).min(N_FRAMES - 1);
+}
+
+fn update_shutter_position(
+    mut commands: Commands,
+    mut q: Query<(Entity, &mut Transform), (With<Wheel>, Without<WheelEnabled>)>,
+    cursor: Res<GlobalCursor>,
+    time: Res<Time>,
+) {
+    let Ok((entity, mut transform)) = q.get_single_mut() else {
+        return;
+    };
+    if let Some(cursor) = cursor.position() {
+        commands.entity(entity).insert(Visibility::Visible);
+        transform.translation = transform.translation.lerp(
+            cursor.extend(transform.translation.z),
+            1.0 - (-10.0 * time.delta_secs()).exp(),
+        );
+        // transform.translation = cursor.extend(transform.translation.z);
+    } else {
+        commands.entity(entity).insert(Visibility::Hidden);
     }
 }
 
@@ -298,6 +314,10 @@ impl FocusDepth {
     fn increase(&mut self, amount: f32) {
         self.0 += amount;
         self.0 = f32::min(MAX_FOCUS_DEPTH, f32::max(MIN_FOCUS_DEPTH, self.0));
+    }
+
+    fn ratio(&self) -> f32 {
+        (self.0 - MIN_FOCUS_DEPTH) / (MAX_FOCUS_DEPTH - MIN_FOCUS_DEPTH)
     }
 }
 
@@ -358,15 +378,8 @@ fn update_player_position(
     }
 }
 
-fn log_cursor_clicks(
-    mut mouse_button_events: EventReader<MouseButtonInput>,
-    cursor: Res<GlobalCursor>,
-) {
-    for event in mouse_button_events.read() {
-        if event.state.is_pressed() {
-            eprintln!("{}", cursor.position());
-        }
-    }
+fn log_cursor_position(cursor: Res<GlobalCursor>) {
+    cursor.position().map(|cursor| eprintln!("{cursor}"));
 }
 
 #[derive(Component, Default)]

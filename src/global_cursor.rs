@@ -11,10 +11,10 @@ impl Plugin for GlobalCursorPlugin {
 
 /// We will store the world position of the mouse cursor here.
 #[derive(Resource, Default)]
-pub struct GlobalCursor(Vec2);
+pub struct GlobalCursor(Option<Vec2>);
 
 impl GlobalCursor {
-    pub fn position(&self) -> Vec2 {
+    pub fn position(&self) -> Option<Vec2> {
         self.0
     }
 }
@@ -23,8 +23,8 @@ impl GlobalCursor {
 #[derive(Component)]
 pub struct MainCamera;
 
-fn update_global_cursor(
-    mut mycoords: ResMut<GlobalCursor>,
+pub fn update_global_cursor(
+    mut global_cursor: ResMut<GlobalCursor>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
@@ -34,6 +34,8 @@ fn update_global_cursor(
         .cursor_position()
         .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor).ok())
     {
-        mycoords.0 = world_position;
+        global_cursor.0 = Some(world_position);
+    } else {
+        global_cursor.0 = None;
     }
 }
